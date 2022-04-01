@@ -1,4 +1,4 @@
-"""Получает данные о статусе домашней работы и отправляет их в телеграм"""
+"""Получает данные о статусе домашней работы и отправляет их в телеграм."""
 
 
 import logging
@@ -6,10 +6,7 @@ import os
 import time
 
 import requests
-
 import telegram
-# from telegram.ext import CommandHandler, Updater
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,19 +28,31 @@ HOMEWORK_STATUSES = {
 }
 
 
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO)
+
+
 def send_message(bot, message):
-    ...
+    """Step 5: Отправляет сообщение в Telegram чат."""
+    try:
+        bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=message
+        )
+        logging.info(f'Сообщение: {message} - успешно отправлено')
+    except Exception as error:
+        logging.error(error)
 
 
 def get_api_answer(current_timestamp):
-    """Step 2: Получаем данные о статусе домашних работ за месяц."""
-
+    """Step 2: Получает данные о статусе домашних работ за месяц."""
     timestamp = current_timestamp or int(time.time())
-    month = 2629743
-    params = {'from_date': timestamp - month}
+    params = {'from_date': timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         response = response.json()
+        logging.info('step 2')
         return response
     except Exception as error:
         logging.error(error)
@@ -51,9 +60,7 @@ def get_api_answer(current_timestamp):
 
 
 def check_response(response):
-    """Step 3: Проверяем ответ API на корректность."""
-    
-    # if 'homeworks' in response:
+    """Step 3: Проверяет ответ API на корректность."""
     try:
         homeworks = response.get('homeworks')
         return homeworks
@@ -63,8 +70,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    """Step 4: Извлекаем статус последней домашней работы"""
-
+    """Step 4: Извлекает статус последней домашней работы."""
     try:
         homework_name = homework.get('lesson_name')
         homework_status = homework.get('status')
@@ -76,9 +82,11 @@ def parse_status(homework):
 
 
 def check_tokens():
-    """Step 1: Проверяем доступность переменных окружения, которые необходимы для работы программы."""
-    
+    """Step 1: Проверяет доступность переменных окружения,
+    которые необходимы для работы программы.
+    """
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+        logging.info('step 1')
         return True
     else:
         return False
@@ -86,29 +94,32 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
-
-    ...
-
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
-
-    ...
-
-    while True:
-        try:
-            response = ...
-
-            ...
-
-            current_timestamp = ...
-            time.sleep(RETRY_TIME)
-
-        except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            ...
-            time.sleep(RETRY_TIME)
-        else:
-            ...
+    if check_tokens():
+        response = get_api_answer(1)
+        homework_list = check_response(response)
+        if len(homework_list) > 0:
+            message = parse_status(homework_list[0])
+            bot = telegram.Bot(token=TELEGRAM_TOKEN)
+            send_message(bot, message)
+#    current_timestamp = int(time.time())
+#
+#    ...
+#
+#    while True:
+#        try:
+#            response = ...
+#
+#            ...
+#
+#            current_timestamp = ...
+#            time.sleep(RETRY_TIME)
+#
+#        except Exception as error:
+#            message = f'Сбой в работе программы: {error}'
+#            ...
+#            time.sleep(RETRY_TIME)
+#        else:
+#            ...
 
 
 if __name__ == '__main__':

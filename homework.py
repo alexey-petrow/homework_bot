@@ -1,11 +1,23 @@
-...
+"""Получает данные о статусе домашней работы и отправляет их в телеграм"""
+
+
+import logging
+import os
+import time
+
+import requests
+
+import telegram
+# from telegram.ext import CommandHandler, Updater
+
+from dotenv import load_dotenv
 
 load_dotenv()
 
 
-PRACTICUM_TOKEN = ...
-TELEGRAM_TOKEN = ...
-TELEGRAM_CHAT_ID = ...
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -24,10 +36,16 @@ def send_message(bot, message):
 
 
 def get_api_answer(current_timestamp):
-    timestamp = current_timestamp or int(time.time())
-    params = {'from_date': timestamp}
+    """Step 2: Получаем данные о статусе домашних работ за месяц"""
 
-    ...
+    timestamp = current_timestamp or int(time.time())
+    month = 2629743
+    params = {'from_date': timestamp - month}
+    try:
+        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        response = response.json()
+    except Exception as error:
+        logging.error(error)
 
 
 def check_response(response):
@@ -49,7 +67,12 @@ def parse_status(homework):
 
 
 def check_tokens():
-    ...
+    """Step 1: Проверяем доступность переменных окружения, которые необходимы для работы программы."""
+    
+    if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+        return True
+    else:
+        return False
 
 
 def main():

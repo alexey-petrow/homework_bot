@@ -36,7 +36,7 @@ def send_message(bot, message):
 
 
 def get_api_answer(current_timestamp):
-    """Step 2: Получаем данные о статусе домашних работ за месяц"""
+    """Step 2: Получаем данные о статусе домашних работ за месяц."""
 
     timestamp = current_timestamp or int(time.time())
     month = 2629743
@@ -44,26 +44,35 @@ def get_api_answer(current_timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         response = response.json()
+        return response
     except Exception as error:
         logging.error(error)
+        return None
 
 
 def check_response(response):
-
-    ...
+    """Step 3: Проверяем ответ API на корректность."""
+    
+    # if 'homeworks' in response:
+    try:
+        homeworks = response.get('homeworks')
+        return homeworks
+    except Exception as error:
+        logging.error(error)
+        return None
 
 
 def parse_status(homework):
-    homework_name = ...
-    homework_status = ...
+    """Step 4: Извлекаем статус последней домашней работы"""
 
-    ...
-
-    verdict = ...
-
-    ...
-
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    try:
+        homework_name = homework.get('lesson_name')
+        homework_status = homework.get('status')
+        verdict = HOMEWORK_STATUSES[homework_status]
+        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    except Exception as error:
+        logging.error(error)
+        return None
 
 
 def check_tokens():

@@ -105,29 +105,27 @@ def main():
     """
     # from_date = 01.01.2021 00:00:00
     from_date = 1609448400
-    while True:
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    errors_list = []
+    while check_tokens():
         try:
-            if check_tokens():
-                response = get_api_answer(from_date)
-                homework_list = check_response(response)
-                if len(homework_list) > 0:
-                    message = parse_status(homework_list[0])
-                    time.sleep(RETRY_TIME)
-                    new_response = get_api_answer(from_date)
-                    new_homework_list = check_response(new_response)
-                    if len(new_homework_list) > 0:
-                        new_message = parse_status(new_homework_list[0])
-                        if message != new_message:
-                            send_message(bot, new_message)
-                        else:
-                            logger.debug('Статус работы не изменился.')
+            response = get_api_answer(from_date)
+            homework_list = check_response(response)
+            if len(homework_list) > 0:
+                message = parse_status(homework_list[0])
+                time.sleep(RETRY_TIME)
+                new_response = get_api_answer(from_date)
+                new_homework_list = check_response(new_response)
+                if len(new_homework_list) > 0:
+                    new_message = parse_status(new_homework_list[0])
+                    if message == new_message:
+                        send_message(bot, new_message)
                     else:
-                        raise TypeError('Переменная не содержит список')
+                        logger.debug('Статус работы не изменился.')
                 else:
                     raise TypeError('Переменная не содержит список')
             else:
-                break
+                raise TypeError('Переменная не содержит список')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             send_message(bot, message)

@@ -16,7 +16,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 60
+RETRY_TIME = 6
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -28,9 +28,13 @@ HOMEWORK_STATUSES = {
 }
 
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+logger.addHandler(handler)
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
+handler.setFormatter(formatter)
 
 
 def send_message(bot, message):
@@ -40,9 +44,9 @@ def send_message(bot, message):
             chat_id=TELEGRAM_CHAT_ID,
             text=message
         )
-        logging.info(f'Сообщение: {message} - успешно отправлено')
+        logger.info(f'Сообщение: {message} - успешно отправлено')
     except Exception as error:
-        logging.error(error)
+        logger.error(error)
 
 
 def get_api_answer(current_timestamp):
@@ -52,35 +56,32 @@ def get_api_answer(current_timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         response = response.json()
-        logging.info('step 2')
+        logger.info('step 2 - выполнен')
         return response
     except Exception as error:
-        logging.error(error)
-        return None
+        logger.error(error)
 
 
 def check_response(response):
     """Step 3: Проверяет ответ API на корректность."""
     try:
-        homeworks = response.get('homeworks')
-        logging.info('step 3')
+        homeworks = response['homeworks']
+        logger.info('step 3 - выполнен')
         return homeworks
     except Exception as error:
-        logging.error(error)
-        return None
+        logger.error(error)
 
 
 def parse_status(homework):
     """Step 4: Извлекает статус последней домашней работы."""
     try:
-        homework_name = homework.get('lesson_name')
-        homework_status = homework.get('status')
+        homework_name = homework['lesson_name']
+        homework_status = homework['status']
         verdict = HOMEWORK_STATUSES[homework_status]
-        logging.info('step 4')
+        logger.info('step 4 - выполнен')
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
     except Exception as error:
-        logging.error(error)
-        return None
+        logger.error(error)
 
 
 def check_tokens():
@@ -89,10 +90,10 @@ def check_tokens():
     Которые необходимы для работы программы.
     """
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-        logging.info('step 1')
+        logger.info('step 1 - выполнен')
         return True
     else:
-        logging.critical('Отсутствуют переменные окружения')
+        logger.critical('Отсутствуют переменные окружения')
         return False
 
 
@@ -105,6 +106,7 @@ def main():
     # from_date = 01.01.2021 00:00:00
     from_date = 1609448400
     while True:
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
         try:
             if check_tokens():
                 response = get_api_answer(from_date)
@@ -117,10 +119,13 @@ def main():
                     if len(new_homework_list) > 0:
                         new_message = parse_status(new_homework_list[0])
                         if message != new_message:
-                            bot = telegram.Bot(token=TELEGRAM_TOKEN)
                             send_message(bot, new_message)
                         else:
-                            logging.debug('Статус работы не изменился.')
+                            logger.debug('Статус работы не изменился.')
+                    else:
+                        raise TypeError('Переменная не содержит список')
+                else:
+                    raise TypeError('Переменная не содержит список')
             else:
                 break
         except Exception as error:

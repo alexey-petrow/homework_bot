@@ -16,7 +16,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
+RETRY_TIME = 60
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -30,7 +30,7 @@ HOMEWORK_STATUSES = {
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO)
+    level=logging.DEBUG)
 
 
 def send_message(bot, message):
@@ -63,6 +63,7 @@ def check_response(response):
     """Step 3: Проверяет ответ API на корректность."""
     try:
         homeworks = response.get('homeworks')
+        logging.info('step 3')
         return homeworks
     except Exception as error:
         logging.error(error)
@@ -75,6 +76,7 @@ def parse_status(homework):
         homework_name = homework.get('lesson_name')
         homework_status = homework.get('status')
         verdict = HOMEWORK_STATUSES[homework_status]
+        logging.info('step 4')
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
     except Exception as error:
         logging.error(error)
@@ -82,44 +84,49 @@ def parse_status(homework):
 
 
 def check_tokens():
-    """Step 1: Проверяет доступность переменных окружения,
-    которые необходимы для работы программы.
+    """Step 1: Проверяет доступность переменных окружения.
+
+    Которые необходимы для работы программы.
     """
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         logging.info('step 1')
         return True
     else:
+        logging.critical('Отсутствуют переменные окружения')
         return False
 
 
 def main():
-    """Основная логика работы бота."""
-    if check_tokens():
-        response = get_api_answer(1)
-        homework_list = check_response(response)
-        if len(homework_list) > 0:
-            message = parse_status(homework_list[0])
-            bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    """Основная логика работы бота.
+
+    Проверяет статус последней работы и в случае изменения статуса
+    отпрявляет уведомление в телеграм чат.
+    """
+    # from_date = 01.01.2021 00:00:00
+    from_date = 1609448400
+    while True:
+        try:
+            if check_tokens():
+                response = get_api_answer(from_date)
+                homework_list = check_response(response)
+                if len(homework_list) > 0:
+                    message = parse_status(homework_list[0])
+                    time.sleep(RETRY_TIME)
+                    new_response = get_api_answer(from_date)
+                    new_homework_list = check_response(new_response)
+                    if len(new_homework_list) > 0:
+                        new_message = parse_status(new_homework_list[0])
+                        if message != new_message:
+                            bot = telegram.Bot(token=TELEGRAM_TOKEN)
+                            send_message(bot, new_message)
+                        else:
+                            logging.debug('Статус работы не изменился.')
+            else:
+                break
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
             send_message(bot, message)
-#    current_timestamp = int(time.time())
-#
-#    ...
-#
-#    while True:
-#        try:
-#            response = ...
-#
-#            ...
-#
-#            current_timestamp = ...
-#            time.sleep(RETRY_TIME)
-#
-#        except Exception as error:
-#            message = f'Сбой в работе программы: {error}'
-#            ...
-#            time.sleep(RETRY_TIME)
-#        else:
-#            ...
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':

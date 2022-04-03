@@ -9,7 +9,8 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exceptions import YandexApiResponseError, UnknownHomeworkStatus, ResponseHasNoHomeworks
+from exceptions import (
+    YandexApiResponseError, UnknownHomeworkStatus, ResponseHasNoHomeworks)
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 6
+RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -59,9 +60,8 @@ def get_api_answer(current_timestamp):
     logger.info(f'step 2 - status code: {response.status_code}')
     status_code = response.status_code
     if status_code != 200:
-        logger.error(f'Ошибка ответа YandexApi. Код ответа: {status_code}')
         raise YandexApiResponseError(
-            f'Ошибка ответа YandexApi. Код ответа: {status_code}')
+            f'Ошибка ответа от сервера Яндекс. Код ответа: {status_code}')
     response = response.json()
     logger.info('step 2 - выполнен')
     return response
@@ -78,7 +78,8 @@ def check_response(response):
             else:
                 raise TypeError('Функция возвращает не список')
         else:
-            raise ResponseHasNoHomeworks('Проверяемый ответ от сервера не содержит ключ "homeworks"')
+            raise ResponseHasNoHomeworks(
+                'Проверяемый ответ от сервера не содержит ключ "homeworks"')
     else:
         raise TypeError('Функция получает не словарь')
 
@@ -87,13 +88,14 @@ def parse_status(homework):
     """Step 4: Извлекает статус последней домашней работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
-    
+
     if homework_status not in HOMEWORK_STATUSES:
-        raise UnknownHomeworkStatus(f'{homework_status} - неизвестный статус домашней работы')
-    
+        raise UnknownHomeworkStatus(
+            f'{homework_status} - неизвестный статус домашней работы')
+
     verdict = HOMEWORK_STATUSES[homework_status]
     logger.info('step 4 - выполнен')
-    
+
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 

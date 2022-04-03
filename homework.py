@@ -9,6 +9,8 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
+from exceptions import YandexApiResponseError, UnknownHomeworkStatus, ResponseHasNoHomeworks
+
 load_dotenv()
 
 
@@ -53,35 +55,43 @@ def get_api_answer(current_timestamp):
     """Step 2: Получает данные о статусе домашних работ за месяц."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
-        response = response.json()
-        logger.info('step 2 - выполнен')
-        return response
-    except Exception as error:
-        logger.error(error)
+    response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    logger.info(f'step 2 - status code: {response.status_code}')
+    status_code = response.status_code
+    if status_code != 200:
+        logger.error(f'Ошибка ответа YandexApi. Код ответа: {status_code}')
+        raise YandexApiResponseError(
+            f'Ошибка ответа YandexApi. Код ответа: {status_code}')
+    response = response.json()
+    logger.info('step 2 - выполнен')
+    return response
 
 
 def check_response(response):
     """Step 3: Проверяет ответ API на корректность."""
-    try:
+    if 'homeworks' in response:
         homeworks = response['homeworks']
         logger.info('step 3 - выполнен')
-        return homeworks
-    except Exception as error:
-        logger.error(error)
+        if isinstance(homeworks, list):
+            return homeworks
+        else:
+            raise TypeError('Функция возвращает не список')
+    else:
+        raise ResponseHasNoHomeworks('Проверяемый ответ от сервера не содержит ключ "homeworks"')
 
 
 def parse_status(homework):
     """Step 4: Извлекает статус последней домашней работы."""
-    try:
-        homework_name = homework['lesson_name']
-        homework_status = homework['status']
-        verdict = HOMEWORK_STATUSES[homework_status]
-        logger.info('step 4 - выполнен')
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    except Exception as error:
-        logger.error(error)
+    homework_name = homework['homework_name']
+    homework_status = homework['status']
+    
+    if homework_status not in HOMEWORK_STATUSES:
+        raise UnknownHomeworkStatus(f'{homework_status} - неизвестный статус домашней работы')
+    
+    verdict = HOMEWORK_STATUSES[homework_status]
+    logger.info('step 4 - выполнен')
+    
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
@@ -122,6 +132,7 @@ def main():
             time.sleep(RETRY_TIME)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            logger.error(error)
             if message not in errors_list:
                 send_message(bot, message)
                 errors_list.append(message)

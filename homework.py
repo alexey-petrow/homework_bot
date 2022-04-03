@@ -69,15 +69,18 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Step 3: Проверяет ответ API на корректность."""
-    if 'homeworks' in response:
-        homeworks = response['homeworks']
-        logger.info('step 3 - выполнен')
-        if isinstance(homeworks, list):
-            return homeworks
+    if isinstance(response, dict):
+        if 'homeworks' in response:
+            homeworks = response['homeworks']
+            logger.info('step 3 - выполнен')
+            if isinstance(homeworks, list):
+                return homeworks
+            else:
+                raise TypeError('Функция возвращает не список')
         else:
-            raise TypeError('Функция возвращает не список')
+            raise ResponseHasNoHomeworks('Проверяемый ответ от сервера не содержит ключ "homeworks"')
     else:
-        raise ResponseHasNoHomeworks('Проверяемый ответ от сервера не содержит ключ "homeworks"')
+        raise TypeError('Функция получает не словарь')
 
 
 def parse_status(homework):
@@ -118,7 +121,7 @@ def main():
     from_date = 1609448400
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     errors_list = []
-    last_homework_status = ['have not status']
+    last_homework_status = ['has no status yet']
     while check_tokens():
         try:
             response = get_api_answer(from_date)

@@ -4,13 +4,16 @@
 import logging
 import os
 import time
+from http import HTTPStatus
+from json.decoder import JSONDecodeError
 
 import requests
 import telegram
 from dotenv import load_dotenv
 
 from exceptions import (
-    YandexApiResponseError, UnknownHomeworkStatus, ResponseHasNoHomeworks)
+    YandexApiResponseError, UnknownHomeworkStatus,
+    ResponseHasNoHomeworks)
 
 load_dotenv()
 
@@ -23,12 +26,13 @@ RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
-
 HOMEWORK_STATUSES = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
+
+YEAR = 31556926
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +52,7 @@ def send_message(bot, message):
             text=message
         )
         logger.info(f'Сообщение: {message} - успешно отправлено')
-    except Exception as error:
+    except telegram.TelegramError as error:
         logger.error(error)
 
 
@@ -56,46 +60,52 @@ def get_api_answer(current_timestamp):
     """Step 2: Получает данные о статусе домашних работ за месяц."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    try:
+        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    except requests.exceptions.RequestException as error:
+        logger.error(error)
     logger.info(f'step 2 - status code: {response.status_code}')
     status_code = response.status_code
-    if status_code != 200:
+    if status_code != HTTPStatus.OK:
         raise YandexApiResponseError(
             f'Ошибка ответа от сервера Яндекс. Код ответа: {status_code}')
-    response = response.json()
+    try:
+        response = response.json()
+    except JSONDecodeError as error:
+        logger.error(error)
     logger.info('step 2 - выполнен')
     return response
 
 
 def check_response(response):
     """Step 3: Проверяет ответ API на корректность."""
-    if isinstance(response, dict):
-        if 'homeworks' in response:
-            homeworks = response['homeworks']
-            logger.info('step 3 - выполнен')
-            if isinstance(homeworks, list):
-                return homeworks
-            else:
-                raise TypeError('Функция возвращает не список')
-        else:
-            raise ResponseHasNoHomeworks(
-                'Проверяемый ответ от сервера не содержит ключ "homeworks"')
-    else:
-        raise TypeError('Функция получает не словарь')
+    if not isinstance(response, dict):
+        raise TypeError(
+            f'Функция получила на вход аргумент типа: {type(response)}.'
+            'Ожидаемыей тип: dict'
+        )
+    if 'homeworks' not in response:
+        raise ResponseHasNoHomeworks(
+            'Проверяемый ответ от сервера не содержит ключ "homeworks"')
+    homeworks = response['homeworks']
+    if not isinstance(homeworks, list):
+        raise TypeError('Функция возвращает не список')
+    logger.info('step 3 - выполнен')
+    return homeworks
 
 
 def parse_status(homework):
     """Step 4: Извлекает статус последней домашней работы."""
+    if 'homework_name' and 'status' not in homework:
+        raise KeyError('Ключи homework_name и status не найдены')
     homework_name = homework['homework_name']
     homework_status = homework['status']
-
     if homework_status not in HOMEWORK_STATUSES:
         raise UnknownHomeworkStatus(
             f'{homework_status} - неизвестный статус домашней работы')
 
     verdict = HOMEWORK_STATUSES[homework_status]
     logger.info('step 4 - выполнен')
-
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -119,8 +129,8 @@ def main():
     отпрявляет уведомление в телеграм чат, а в случает ошибки отправляет
     в телеграм чат однократное уведомление об ошибке.
     """
-    # from_date = 01.01.2021 00:00:00
-    from_date = 1609448400
+    current_date = int(time.time())
+    from_date = current_date - YEAR
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     errors_list = []
     last_homework_status = ['has no status yet']

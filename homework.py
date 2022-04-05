@@ -54,6 +54,7 @@ def send_message(bot, message):
         logger.info(f'Сообщение: {message} - успешно отправлено')
     except telegram.TelegramError as error:
         logger.error(error)
+        raise error
 
 
 def get_api_answer(current_timestamp):
@@ -64,6 +65,7 @@ def get_api_answer(current_timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except requests.exceptions.RequestException as error:
         logger.error(error)
+        raise error
     logger.info(f'step 2 - status code: {response.status_code}')
     status_code = response.status_code
     if status_code != HTTPStatus.OK:
@@ -73,6 +75,7 @@ def get_api_answer(current_timestamp):
         response = response.json()
     except JSONDecodeError as error:
         logger.error(error)
+        raise error
     logger.info('step 2 - выполнен')
     return response
 
@@ -96,7 +99,7 @@ def check_response(response):
 
 def parse_status(homework):
     """Step 4: Извлекает статус последней домашней работы."""
-    if 'homework_name' and 'status' not in homework:
+    if 'homework_name' not in homework and 'status' not in homework:
         raise KeyError('Ключи homework_name и status не найдены')
     homework_name = homework['homework_name']
     homework_status = homework['status']
